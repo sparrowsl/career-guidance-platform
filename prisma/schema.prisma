@@ -1,0 +1,209 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model Student {
+  id        String   @id @default(cuid())
+  name      String
+  email     String   @unique
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  responses           StudentResponse[]
+  recommendations     StudentRecommendation[]
+  progress            StudentProgress[]
+  goals               Goal[]
+  mentorshipRequests  MentorshipRequest[]
+}
+
+model QuizQuestion {
+  id          String   @id @default(cuid())
+  question    String
+  category    String   // e.g., "analytical", "creative", "technical", "interpersonal"
+  weight      Float    @default(1.0)
+  order       Int
+  createdAt   DateTime @default(now())
+
+  options   QuestionOption[]
+  responses StudentResponse[]
+}
+
+model QuestionOption {
+  id         String   @id @default(cuid())
+  questionId String
+  text       String
+  score      Int      // 1-5 scale representing affinity to category
+
+  question  QuizQuestion      @relation(fields: [questionId], references: [id], onDelete: Cascade)
+  responses StudentResponse[]
+}
+
+model StudentResponse {
+  id         String   @id @default(cuid())
+  studentId  String
+  questionId String
+  optionId   String
+  createdAt  DateTime @default(now())
+
+  student  Student        @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  question QuizQuestion   @relation(fields: [questionId], references: [id], onDelete: Cascade)
+  option   QuestionOption @relation(fields: [optionId], references: [id], onDelete: Cascade)
+
+  @@unique([studentId, questionId])
+}
+
+model Career {
+  id               String   @id @default(cuid())
+  title            String
+  description      String
+  averageSalary    String?
+  jobGrowthRate    String?
+  requiredEducation String?
+  category         String   // e.g., "technology", "healthcare", "business", "creative"
+  demandLevel      String   // "high", "medium", "low"
+  createdAt        DateTime @default(now())
+
+  skills          CareerSkill[]
+  recommendations StudentRecommendation[]
+  mentors         Mentor[]
+  marketInsights  MarketInsight[]
+}
+
+model Skill {
+  id          String   @id @default(cuid())
+  name        String   @unique
+  description String?
+  category    String   // matches quiz categories
+  createdAt   DateTime @default(now())
+
+  careers   CareerSkill[]
+  resources LearningResource[]
+}
+
+model CareerSkill {
+  id        String @id @default(cuid())
+  careerId  String
+  skillId   String
+  importance String @default("medium") // "essential", "recommended", "optional"
+
+  career Career @relation(fields: [careerId], references: [id], onDelete: Cascade)
+  skill  Skill  @relation(fields: [skillId], references: [id], onDelete: Cascade)
+
+  @@unique([careerId, skillId])
+}
+
+model StudentRecommendation {
+  id          String   @id @default(cuid())
+  studentId   String
+  careerId    String
+  matchScore  Float    // 0-100
+  reasoning   String   // AI-generated explanation
+  createdAt   DateTime @default(now())
+
+  student Student @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  career  Career  @relation(fields: [careerId], references: [id], onDelete: Cascade)
+
+  @@unique([studentId, careerId])
+}
+
+model LearningResource {
+  id          String   @id @default(cuid())
+  skillId     String
+  title       String
+  url         String
+  type        String   // "course", "article", "video", "book"
+  provider    String?  // e.g., "Coursera", "YouTube", "Udemy"
+  isFree      Boolean  @default(false)
+  createdAt   DateTime @default(now())
+
+  skill            Skill             @relation(fields: [skillId], references: [id], onDelete: Cascade)
+  studentProgress  StudentProgress[]
+}
+
+model Mentor {
+  id              String   @id @default(cuid())
+  name            String
+  email           String   @unique
+  bio             String?
+  title           String   // e.g., "Senior Software Engineer"
+  company         String?
+  yearsExperience Int
+  careerId        String
+  linkedInUrl     String?
+  availability    String   @default("available") // "available", "busy", "unavailable"
+  maxMentees      Int      @default(5)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  career              Career              @relation(fields: [careerId], references: [id], onDelete: Cascade)
+  mentorshipRequests  MentorshipRequest[]
+}
+
+model MentorshipRequest {
+  id          String   @id @default(cuid())
+  studentId   String
+  mentorId    String
+  status      String   @default("pending") // "pending", "accepted", "rejected", "completed"
+  message     String?  // Student's introduction message
+  response    String?  // Mentor's response
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  student Student @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  mentor  Mentor  @relation(fields: [mentorId], references: [id], onDelete: Cascade)
+
+  @@unique([studentId, mentorId])
+}
+
+model StudentProgress {
+  id              String   @id @default(cuid())
+  studentId       String
+  resourceId      String
+  status          String   @default("started") // "started", "in_progress", "completed"
+  progressPercent Int      @default(0) // 0-100
+  startedAt       DateTime @default(now())
+  completedAt     DateTime?
+  updatedAt       DateTime @updatedAt
+
+  student  Student          @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  resource LearningResource @relation(fields: [resourceId], references: [id], onDelete: Cascade)
+
+  @@unique([studentId, resourceId])
+}
+
+model Goal {
+  id          String   @id @default(cuid())
+  studentId   String
+  title       String
+  description String?
+  targetDate  DateTime?
+  status      String   @default("active") // "active", "completed", "abandoned"
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  student Student @relation(fields: [studentId], references: [id], onDelete: Cascade)
+}
+
+model MarketInsight {
+  id              String   @id @default(cuid())
+  careerId        String
+  month           String   // e.g., "2024-01"
+  jobPostings     Int      // Number of job postings
+  avgSalary       Float?   // Average salary for the month
+  demandTrend     String   // "increasing", "stable", "decreasing"
+  topSkills       String   // JSON array of top skills in demand
+  topCompanies    String?  // JSON array of top hiring companies
+  createdAt       DateTime @default(now())
+
+  career Career @relation(fields: [careerId], references: [id], onDelete: Cascade)
+
+  @@unique([careerId, month])
+}
